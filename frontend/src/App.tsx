@@ -620,7 +620,7 @@ function App() {
             className="secondary-button"
             onClick={() => {
               window.location.href =
-                "http://localhost:8000/auth/google";
+                "https://ai-mail-manager-backend.onrender.com/auth/google";
             }}
             disabled={
               syncing ||
