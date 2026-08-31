@@ -160,7 +160,6 @@ def test_database():
 def google_login(
     request: Request,
 ):
-
     flow = create_google_flow()
 
     authorization_url, state = (
@@ -173,7 +172,6 @@ def google_login(
     request.session["oauth_state"] = state
 
     if flow.code_verifier:
-
         request.session["code_verifier"] = (
             flow.code_verifier
         )
@@ -194,7 +192,6 @@ def google_callback(
     state: str,
     db: Session = Depends(get_db),
 ):
-
     # --------------------------------------------------------
     # Validate OAuth state
     # --------------------------------------------------------
@@ -211,7 +208,6 @@ def google_callback(
         not saved_state
         or state != saved_state
     ):
-
         return {
             "error": "Invalid OAuth state"
         }
@@ -250,7 +246,6 @@ def google_callback(
         not google_email
         or not google_id
     ):
-
         return {
             "error": (
                 "Could not retrieve "
@@ -271,7 +266,6 @@ def google_callback(
     )
 
     if user is None:
-
         user = User(
             email=google_email
         )
@@ -287,16 +281,13 @@ def google_callback(
     email_account = (
         db.query(EmailAccount)
         .filter(
-            EmailAccount.user_id
-            == user.id,
-            EmailAccount.provider
-            == "gmail",
+            EmailAccount.user_id == user.id,
+            EmailAccount.provider == "gmail",
         )
         .first()
     )
 
     if email_account is None:
-
         email_account = EmailAccount(
             user_id=user.id,
             provider="gmail",
@@ -307,15 +298,8 @@ def google_callback(
         db.commit()
         db.refresh(email_account)
 
-    else:
-
-        # Keep provider account ID current
-        email_account.provider_account_id = (
-            google_id
-        )
-
     # --------------------------------------------------------
-    # Encrypt and save OAuth credentials
+    # Save OAuth credentials
     # --------------------------------------------------------
 
     save_google_credentials(
@@ -325,7 +309,17 @@ def google_callback(
     )
 
     # --------------------------------------------------------
-    # Clear OAuth session values
+    # Create application session
+    # --------------------------------------------------------
+
+    request.session["user_id"] = user.id
+    request.session["email_account_id"] = (
+        email_account.id
+    )
+    request.session["email"] = user.email
+
+    # --------------------------------------------------------
+    # Clear OAuth temporary session data
     # --------------------------------------------------------
 
     request.session.pop(
@@ -348,13 +342,86 @@ def google_callback(
     )
 
     return RedirectResponse(
-        url=(
-            f"{frontend_url}"
-            f"?connected=true"
-            f"&email_account_id={email_account.id}"
-            f"&email={user.email}"
-        )
+        url=f"{frontend_url}?connected=true"
     )
+
+
+# ============================================================
+# Current Authenticated User
+# ============================================================
+
+@app.get("/auth/me")
+def get_current_user(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user_id = request.session.get(
+        "user_id"
+    )
+
+    if not user_id:
+        return {
+            "authenticated": False,
+            "user": None,
+            "email_account_id": None,
+        }
+
+    user = (
+        db.query(User)
+        .filter(
+            User.id == user_id
+        )
+        .first()
+    )
+
+    if user is None:
+        request.session.clear()
+
+        return {
+            "authenticated": False,
+            "user": None,
+            "email_account_id": None,
+        }
+
+    email_account = (
+        db.query(EmailAccount)
+        .filter(
+            EmailAccount.user_id == user.id,
+            EmailAccount.provider == "gmail",
+        )
+        .first()
+    )
+
+    if email_account is None:
+        return {
+            "authenticated": False,
+            "user": None,
+            "email_account_id": None,
+        }
+
+    return {
+        "authenticated": True,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+        },
+        "email_account_id": email_account.id,
+    }
+
+
+# ============================================================
+# Logout
+# ============================================================
+
+@app.post("/auth/logout")
+def logout(
+    request: Request,
+):
+    request.session.clear()
+
+    return {
+        "message": "Logged out successfully"
+    }
 # ============================================================
 # Gmail Sync
 # ============================================================
