@@ -13,9 +13,6 @@ import {
 import "./App.css";
 
 
-const EMAIL_ACCOUNT_ID = 1;
-
-
 const CATEGORY_OPTIONS = [
   "All",
   "Work",
@@ -41,6 +38,30 @@ type ViewMode =
 
 
 function App() {
+
+  /* =========================================================
+     AUTHENTICATION
+     ========================================================= */
+
+  const [authenticated, setAuthenticated] =
+    useState(false);
+
+  const [userEmail, setUserEmail] =
+    useState<string | null>(null);
+
+  const [emailAccountId, setEmailAccountId] =
+    useState<number | null>(null);
+
+  const [authLoading, setAuthLoading] =
+    useState(true);
+
+  const [loggingOut, setLoggingOut] =
+    useState(false);
+
+
+  /* =========================================================
+     APPLICATION STATE
+     ========================================================= */
 
   const [dashboard, setDashboard] =
     useState<DashboardResponse | null>(
@@ -97,10 +118,147 @@ function App() {
 
 
   /* =========================================================
+     CHECK AUTHENTICATION
+     ========================================================= */
+
+  async function checkAuthentication() {
+
+    try {
+
+      setAuthLoading(true);
+
+      setError(null);
+
+      const auth =
+        await api.getCurrentUser();
+
+      if (
+        !auth.authenticated ||
+        !auth.user ||
+        !auth.email_account_id
+      ) {
+
+        setAuthenticated(false);
+
+        setUserEmail(null);
+
+        setEmailAccountId(null);
+
+        return;
+      }
+
+
+      setAuthenticated(true);
+
+      setUserEmail(
+        auth.user.email
+      );
+
+      setEmailAccountId(
+        auth.email_account_id
+      );
+
+    } catch (err) {
+
+      setAuthenticated(false);
+
+      setUserEmail(null);
+
+      setEmailAccountId(null);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to check authentication"
+      );
+
+    } finally {
+
+      setAuthLoading(false);
+
+    }
+
+  }
+
+
+  useEffect(() => {
+
+    checkAuthentication();
+
+  }, []);
+
+
+  /* =========================================================
+     HANDLE GOOGLE LOGIN
+     ========================================================= */
+
+  function handleLogin() {
+
+    api.loginWithGoogle();
+
+  }
+
+
+  /* =========================================================
+     HANDLE LOGOUT
+     ========================================================= */
+
+  async function handleLogout() {
+
+    try {
+
+      setLoggingOut(true);
+
+      setError(null);
+
+      await api.logout();
+
+      setAuthenticated(false);
+
+      setUserEmail(null);
+
+      setEmailAccountId(null);
+
+      setDashboard(null);
+
+      setEmails([]);
+
+      setSelectedEmail(null);
+
+      setSelectedCategory("All");
+
+      setViewMode("inbox");
+
+      setFilterMode("all");
+
+      setSearch("");
+
+    } catch (err) {
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Logout failed"
+      );
+
+    } finally {
+
+      setLoggingOut(false);
+
+    }
+
+  }
+
+
+  /* =========================================================
      LOAD DASHBOARD + EMAILS
      ========================================================= */
 
   async function loadData() {
+
+    if (!emailAccountId) {
+      return;
+    }
 
     try {
 
@@ -115,11 +273,11 @@ function App() {
       ] = await Promise.all([
 
         api.getDashboard(
-          EMAIL_ACCOUNT_ID
+          emailAccountId
         ),
 
         api.getEmails(
-          EMAIL_ACCOUNT_ID,
+          emailAccountId,
           1,
           100
         ),
@@ -178,11 +336,25 @@ function App() {
   }
 
 
+  /* =========================================================
+     LOAD DATA AFTER AUTHENTICATION
+     ========================================================= */
+
   useEffect(() => {
 
-    loadData();
+    if (
+      authenticated &&
+      emailAccountId
+    ) {
 
-  }, []);
+      loadData();
+
+    }
+
+  }, [
+    authenticated,
+    emailAccountId,
+  ]);
 
 
   /* =========================================================
@@ -233,6 +405,10 @@ function App() {
 
   async function handleSync() {
 
+    if (!emailAccountId) {
+      return;
+    }
+
     try {
 
       setSyncing(true);
@@ -242,7 +418,7 @@ function App() {
 
       const result =
         await api.syncEmails(
-          EMAIL_ACCOUNT_ID
+          emailAccountId
         );
 
 
@@ -281,6 +457,10 @@ function App() {
 
   async function handleClassify() {
 
+    if (!emailAccountId) {
+      return;
+    }
+
     try {
 
       setClassifying(true);
@@ -290,7 +470,7 @@ function App() {
 
       const result =
         await api.classifyEmails(
-          EMAIL_ACCOUNT_ID
+          emailAccountId
         );
 
 
@@ -557,16 +737,195 @@ function App() {
 
 
   /* =========================================================
-     LOADING
+     AUTH LOADING
+     ========================================================= */
+
+  if (authLoading) {
+
+    return (
+
+      <div
+        className="app-loading"
+      >
+
+        <div
+          className="loading-spinner"
+        />
+
+        Checking authentication...
+
+      </div>
+
+    );
+
+  }
+
+
+  /* =========================================================
+     LOGIN SCREEN
+     ========================================================= */
+
+  if (!authenticated) {
+
+    return (
+
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#f8fafc",
+          padding: "24px",
+        }}
+      >
+
+        <div
+          style={{
+            width: "100%",
+            maxWidth: "440px",
+            background: "white",
+            borderRadius: "20px",
+            padding: "40px",
+            boxShadow:
+              "0 20px 50px rgba(15, 23, 42, 0.12)",
+            textAlign: "center",
+          }}
+        >
+
+          <div
+            style={{
+              width: "64px",
+              height: "64px",
+              margin: "0 auto 20px",
+              borderRadius: "16px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "#111827",
+              color: "white",
+              fontSize: "20px",
+              fontWeight: 700,
+            }}
+          >
+            AI
+          </div>
+
+
+          <h1
+            style={{
+              margin: "0 0 8px",
+              fontSize: "28px",
+              color: "#111827",
+            }}
+          >
+            AI Mail Manager
+          </h1>
+
+
+          <p
+            style={{
+              margin: "0 0 28px",
+              color: "#6b7280",
+              lineHeight: 1.6,
+            }}
+          >
+            Sign in with Google to
+            intelligently organize and
+            analyze your Gmail.
+          </p>
+
+
+          {error && (
+
+            <div
+              style={{
+                marginBottom: "20px",
+                padding: "12px 14px",
+                borderRadius: "10px",
+                background: "#fef2f2",
+                color: "#b91c1c",
+                fontSize: "14px",
+              }}
+            >
+              {error}
+            </div>
+
+          )}
+
+
+          <button
+            type="button"
+            onClick={handleLogin}
+            style={{
+              width: "100%",
+              padding: "13px 18px",
+              borderRadius: "10px",
+              border:
+                "1px solid #d1d5db",
+              background: "white",
+              color: "#111827",
+              fontSize: "15px",
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "10px",
+            }}
+          >
+
+            <span
+              style={{
+                fontSize: "18px",
+                fontWeight: 700,
+              }}
+            >
+              G
+            </span>
+
+            Continue with Google
+
+          </button>
+
+
+          <p
+            style={{
+              marginTop: "24px",
+              marginBottom: 0,
+              fontSize: "12px",
+              color: "#9ca3af",
+              lineHeight: 1.5,
+            }}
+          >
+            Gmail access is currently
+            limited to authorized users.
+          </p>
+
+        </div>
+
+      </div>
+
+    );
+
+  }
+
+
+  /* =========================================================
+     APPLICATION LOADING
      ========================================================= */
 
   if (loading) {
 
     return (
 
-      <div className="app-loading">
+      <div
+        className="app-loading"
+      >
 
-        <div className="loading-spinner" />
+        <div
+          className="loading-spinner"
+        />
 
         Loading AI Mail Manager...
 
@@ -578,7 +937,7 @@ function App() {
 
 
   /* =========================================================
-     UI
+     MAIN UI
      ========================================================= */
 
   return (
@@ -614,21 +973,33 @@ function App() {
         </div>
 
 
-        <div className="topbar-actions">
+        <div
+          className="topbar-actions"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            flexWrap: "wrap",
+          }}
+        >
 
-          <button
-            className="secondary-button"
-            onClick={() => {
-              window.location.href =
-                "https://ai-mail-manager-backend.onrender.com/auth/google";
-            }}
-            disabled={
-              syncing ||
-              classifying
-            }
-          >
-            Connect Gmail
-          </button>
+          {userEmail && (
+
+            <span
+              style={{
+                fontSize: "13px",
+                color: "#6b7280",
+                maxWidth: "240px",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+              title={userEmail}
+            >
+              {userEmail}
+            </span>
+
+          )}
 
 
           <button
@@ -659,6 +1030,23 @@ function App() {
             {classifying
               ? "Classifying..."
               : "Run AI"}
+
+          </button>
+
+
+          <button
+            className="secondary-button"
+            onClick={handleLogout}
+            disabled={
+              loggingOut ||
+              syncing ||
+              classifying
+            }
+          >
+
+            {loggingOut
+              ? "Logging out..."
+              : "Logout"}
 
           </button>
 
@@ -874,6 +1262,10 @@ function App() {
                     "All"
                   );
 
+                  setSelectedEmail(
+                    null
+                  );
+
                 }}
               >
 
@@ -915,6 +1307,10 @@ function App() {
 
                   setSelectedCategory(
                     "All"
+                  );
+
+                  setSelectedEmail(
+                    null
                   );
 
                 }}
@@ -980,6 +1376,10 @@ function App() {
 
                         setSelectedCategory(
                           category
+                        );
+
+                        setSelectedEmail(
+                          null
                         );
 
                       }}

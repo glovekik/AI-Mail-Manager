@@ -1,17 +1,18 @@
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  "https://ai-mail-manager-backend.onrender.com";
+  "https://ai-mail-manager-swart.vercel.app";
 
 
 async function request<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
-
   const response = await fetch(
     `${API_BASE_URL}${endpoint}`,
     {
       ...options,
+
+      credentials: "include",
 
       headers: {
         "Content-Type": "application/json",
@@ -22,26 +23,20 @@ async function request<T>(
 
 
   if (!response.ok) {
-
     let errorMessage =
       `Request failed: ${response.status}`;
 
     try {
-
       const errorData =
         await response.json();
 
       if (errorData.detail) {
-
         errorMessage =
           errorData.detail;
-
       } else if (errorData.error) {
-
         errorMessage =
           errorData.error;
       }
-
     } catch {
       // Ignore invalid JSON response
     }
@@ -55,93 +50,84 @@ async function request<T>(
 
 
 /* =========================================================
+   AUTH TYPES
+   ========================================================= */
+
+export interface AuthUser {
+  id: number;
+  email: string;
+}
+
+
+export interface AuthResponse {
+  authenticated: boolean;
+
+  user: AuthUser | null;
+
+  email_account_id: number | null;
+}
+
+
+/* =========================================================
    API
    ========================================================= */
 
 export const api = {
 
-  // ---------------------------------------------------------
-  // Health
-  // ---------------------------------------------------------
+  /* =======================================================
+     AUTH
+     ======================================================= */
+
+  getCurrentUser: () =>
+    request<AuthResponse>(
+      "/auth/me"
+    ),
+
+
+  loginWithGoogle: () => {
+    window.location.href =
+      `${API_BASE_URL}/auth/google`;
+  },
+
+
+  logout: () =>
+    request<{
+      message: string;
+    }>(
+      "/auth/logout",
+      {
+        method: "POST",
+      }
+    ),
+
+
+  /* =======================================================
+     HEALTH
+     ======================================================= */
 
   getHealth: () =>
     request<{
       status: string;
-      service?: string;
+      service: string;
     }>("/health"),
 
 
-  // ---------------------------------------------------------
-  // Emails
-  // ---------------------------------------------------------
+  /* =======================================================
+     EMAILS
+     ======================================================= */
 
   getEmails: (
     emailAccountId: number,
     page = 1,
     pageSize = 20,
-    category?: string,
-    isRead?: boolean,
-    search?: string
-  ) => {
-
-    const params =
-      new URLSearchParams();
-
-    params.set(
-      "email_account_id",
-      String(emailAccountId)
-    );
-
-    params.set(
-      "page",
-      String(page)
-    );
-
-    params.set(
-      "page_size",
-      String(pageSize)
-    );
-
-
-    if (
-      category &&
-      category !== "All"
-    ) {
-
-      params.set(
-        "category",
-        category
-      );
-    }
-
-
-    if (
-      isRead !== undefined
-    ) {
-
-      params.set(
-        "is_read",
-        String(isRead)
-      );
-    }
-
-
-    if (
-      search &&
-      search.trim()
-    ) {
-
-      params.set(
-        "search",
-        search.trim()
-      );
-    }
-
-
-    return request<EmailListResponse>(
-      `/api/emails?${params.toString()}`
-    );
-  },
+    jobOnly = false
+  ) =>
+    request<EmailListResponse>(
+      `/api/emails?email_account_id=${emailAccountId}` +
+      `&page=${page}` +
+      `&page_size=${pageSize}` +
+      `&job_only=${jobOnly}`
+    ),
 
 
   getEmail: (
@@ -152,14 +138,10 @@ export const api = {
     ),
 
 
-  // ---------------------------------------------------------
-  // Email actions
-  // ---------------------------------------------------------
-
   markEmailRead: (
     emailId: number
   ) =>
-    request<EmailActionResponse>(
+    request(
       `/api/emails/${emailId}/read`,
       {
         method: "POST",
@@ -170,7 +152,7 @@ export const api = {
   markEmailUnread: (
     emailId: number
   ) =>
-    request<EmailActionResponse>(
+    request(
       `/api/emails/${emailId}/unread`,
       {
         method: "POST",
@@ -181,7 +163,7 @@ export const api = {
   archiveEmail: (
     emailId: number
   ) =>
-    request<EmailActionResponse>(
+    request(
       `/api/emails/${emailId}/archive`,
       {
         method: "POST",
@@ -192,7 +174,7 @@ export const api = {
   deleteEmail: (
     emailId: number
   ) =>
-    request<EmailActionResponse>(
+    request(
       `/api/emails/${emailId}/delete`,
       {
         method: "POST",
@@ -200,9 +182,9 @@ export const api = {
     ),
 
 
-  // ---------------------------------------------------------
-  // Dashboard
-  // ---------------------------------------------------------
+  /* =======================================================
+     DASHBOARD
+     ======================================================= */
 
   getDashboard: (
     emailAccountId: number
@@ -212,9 +194,9 @@ export const api = {
     ),
 
 
-  // ---------------------------------------------------------
-  // Categories
-  // ---------------------------------------------------------
+  /* =======================================================
+     CATEGORIES
+     ======================================================= */
 
   getCategories: () =>
     request<{
@@ -222,9 +204,9 @@ export const api = {
     }>("/api/categories"),
 
 
-  // ---------------------------------------------------------
-  // Gmail sync
-  // ---------------------------------------------------------
+  /* =======================================================
+     SYNC
+     ======================================================= */
 
   syncEmails: (
     emailAccountId: number
@@ -237,9 +219,9 @@ export const api = {
     ),
 
 
-  // ---------------------------------------------------------
-  // AI classification
-  // ---------------------------------------------------------
+  /* =======================================================
+     AI
+     ======================================================= */
 
   classifyEmails: (
     emailAccountId: number
@@ -250,11 +232,12 @@ export const api = {
         method: "POST",
       }
     ),
+
 };
 
 
 /* =========================================================
-   TYPES
+   EMAIL TYPES
    ========================================================= */
 
 export interface EmailClassification {
@@ -275,10 +258,7 @@ export interface EmailClassification {
 
 
 export interface Email {
-
   id: number;
-
-  email_account_id?: number;
 
   provider_message_id: string;
 
@@ -304,7 +284,6 @@ export interface Email {
 
 
 export interface EmailListResponse {
-
   total: number;
 
   page: number;
@@ -315,20 +294,11 @@ export interface EmailListResponse {
 }
 
 
-export interface EmailActionResponse {
-
-  status: string;
-
-  message: string;
-
-  email_id: number;
-
-  is_read?: boolean;
-}
-
+/* =========================================================
+   DASHBOARD TYPES
+   ========================================================= */
 
 export interface DashboardResponse {
-
   total_emails: number;
 
   unread_emails: number;
@@ -346,8 +316,11 @@ export interface DashboardResponse {
 }
 
 
-export interface SyncResponse {
+/* =========================================================
+   SYNC TYPES
+   ========================================================= */
 
+export interface SyncResponse {
   fetched?: number;
 
   inserted?: number;
@@ -360,8 +333,11 @@ export interface SyncResponse {
 }
 
 
-export interface ClassificationResponse {
+/* =========================================================
+   CLASSIFICATION TYPES
+   ========================================================= */
 
+export interface ClassificationResponse {
   fetched?: number;
 
   classified?: number;
