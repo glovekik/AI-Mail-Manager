@@ -1,6 +1,6 @@
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  "https://ai-mail-manager-swart.vercel.app";
+  "https://ai-mail-manager-backend.onrender.com";
 
 
 async function request<T>(
@@ -71,6 +71,43 @@ export interface AuthResponse {
 /* =========================================================
    API
    ========================================================= */
+
+
+/* =========================================================
+   CHAT TYPES
+   ========================================================= */
+
+export interface ChatEmail {
+  id: number;
+  sender: string | null;
+  sender_name: string | null;
+  subject: string | null;
+  received_at: string | null;
+  snippet: string | null;
+  is_read: boolean;
+  is_job_related: boolean;
+}
+
+export interface ChatIntent {
+  intent:
+    | "search_emails"
+    | "sync_emails"
+    | "summarize_emails"
+    | "unknown";
+
+  search_query: string | null;
+  job_only: boolean;
+  date_from: string | null;
+  date_to: string | null;
+}
+
+export interface ChatResponse {
+  message: string;
+  intent: ChatIntent;
+  count: number;
+  emails: ChatEmail[];
+  message_response?: string;
+}
 
 export const api = {
 
@@ -230,6 +267,22 @@ export const api = {
       `/api/ai/classify?email_account_id=${emailAccountId}`,
       {
         method: "POST",
+      }
+    ),
+
+
+  /* =======================================================
+     CHAT
+     ======================================================= */
+
+  chat: (message: string) =>
+    request<ChatResponse>(
+      "/api/chat",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          message,
+        }),
       }
     ),
 
