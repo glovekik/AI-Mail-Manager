@@ -1,22 +1,31 @@
 import os
+
 from fastapi.responses import RedirectResponse
 from fastapi import Depends, FastAPI, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.ai.gemini_client import classify_email
+
 from app.scheduler.email_scheduler import (
     start_scheduler,
     stop_scheduler,
 )
 
+from app.api.chat_routes import (
+    router as chat_router,
+)
+
 from app.api.category_routes import (
     router as category_router,
 )
+
 from app.api.dashboard_routes import (
     router as dashboard_router,
 )
+
 from app.api.email_routes import (
     router as email_router,
 )
@@ -25,6 +34,7 @@ from app.auth.credential_service import (
     load_google_credentials,
     save_google_credentials,
 )
+
 from app.auth.google_oauth import create_google_flow
 from app.auth.google_user import get_google_user
 
@@ -44,6 +54,7 @@ from app.models import (
 from app.services.email.classification_service import (
     classify_account_emails,
 )
+
 from app.services.email.email_sync_service import (
     sync_gmail_emails,
 )
@@ -57,6 +68,12 @@ app = FastAPI(
     title="AI Mail Manager",
     version="1.0.0",
 )
+
+
+# ============================================================
+# CORS
+# ============================================================
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -70,19 +87,27 @@ app.add_middleware(
 
 
 # ============================================================
-# Middleware
+# Session Middleware
 # ============================================================
+
+SESSION_SECRET = os.getenv(
+    "SESSION_SECRET",
+    "development-session-secret",
+)
 
 app.add_middleware(
     SessionMiddleware,
+<<<<<<< Updated upstream
     secret_key=os.getenv(
         "SESSION_SECRET",
         "development-session-secret",
     ),
+=======
+    secret_key=SESSION_SECRET,
+>>>>>>> Stashed changes
     same_site="none",
     https_only=True,
 )
-
 
 # ============================================================
 # Database
@@ -107,6 +132,10 @@ app.include_router(
 
 app.include_router(
     category_router
+)
+
+app.include_router(
+    chat_router
 )
 
 
@@ -162,6 +191,7 @@ def test_database():
 def google_login(
     request: Request,
 ):
+
     flow = create_google_flow()
 
     authorization_url, state = (
@@ -194,6 +224,7 @@ def google_callback(
     state: str,
     db: Session = Depends(get_db),
 ):
+
     # --------------------------------------------------------
     # Validate OAuth state
     # --------------------------------------------------------
@@ -210,6 +241,7 @@ def google_callback(
         not saved_state
         or state != saved_state
     ):
+
         return {
             "error": "Invalid OAuth state"
         }
@@ -248,6 +280,7 @@ def google_callback(
         not google_email
         or not google_id
     ):
+
         return {
             "error": (
                 "Could not retrieve "
@@ -268,6 +301,7 @@ def google_callback(
     )
 
     if user is None:
+
         user = User(
             email=google_email
         )
@@ -290,6 +324,7 @@ def google_callback(
     )
 
     if email_account is None:
+
         email_account = EmailAccount(
             user_id=user.id,
             provider="gmail",
@@ -315,9 +350,11 @@ def google_callback(
     # --------------------------------------------------------
 
     request.session["user_id"] = user.id
+
     request.session["email_account_id"] = (
         email_account.id
     )
+
     request.session["email"] = user.email
 
     # --------------------------------------------------------
@@ -357,11 +394,13 @@ def get_current_user(
     request: Request,
     db: Session = Depends(get_db),
 ):
+
     user_id = request.session.get(
         "user_id"
     )
 
     if not user_id:
+
         return {
             "authenticated": False,
             "user": None,
@@ -377,6 +416,7 @@ def get_current_user(
     )
 
     if user is None:
+
         request.session.clear()
 
         return {
@@ -395,6 +435,7 @@ def get_current_user(
     )
 
     if email_account is None:
+
         return {
             "authenticated": False,
             "user": None,
@@ -419,11 +460,14 @@ def get_current_user(
 def logout(
     request: Request,
 ):
+
     request.session.clear()
 
     return {
         "message": "Logged out successfully"
     }
+
+
 # ============================================================
 # Gmail Sync
 # ============================================================
@@ -650,11 +694,18 @@ def root():
         "docs": "/docs",
     }
 
+
+# ============================================================
+# Scheduler
+# ============================================================
+
 @app.on_event("startup")
 def startup_event():
+
     start_scheduler()
 
 
 @app.on_event("shutdown")
 def shutdown_event():
+
     stop_scheduler()

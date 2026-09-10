@@ -115,6 +115,17 @@ export const api = {
      AUTH
      ======================================================= */
 
+    chat: (message: string) =>
+    request<ChatResponse>(
+      "/api/chat",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          message,
+        }),
+      }
+    ),
+
   getCurrentUser: () =>
     request<AuthResponse>(
       "/auth/me"
@@ -275,16 +286,7 @@ export const api = {
      CHAT
      ======================================================= */
 
-  chat: (message: string) =>
-    request<ChatResponse>(
-      "/api/chat",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          message,
-        }),
-      }
-    ),
+    
 
 };
 
@@ -409,4 +411,39 @@ export interface ClassificationResponse {
   error?: string;
 
   details?: string;
+}
+
+
+
+
+export interface ChatEmail {
+  id: number;
+  sender: string | null;
+  sender_name: string | null;
+  subject: string | null;
+  received_at: string | null;
+  snippet: string | null;
+  is_read: boolean;
+  is_job_related: boolean;
+}
+
+export interface ChatIntent {
+  intent:
+    | "search_emails"
+    | "sync_emails"
+    | "summarize_emails"
+    | "unknown";
+
+  search_query: string | null;
+  job_only: boolean;
+  date_from: string | null;
+  date_to: string | null;
+}
+
+export interface ChatResponse {
+  message: string;
+  intent: ChatIntent;
+  count: number;
+  emails: ChatEmail[];
+  message_response?: string;
 }

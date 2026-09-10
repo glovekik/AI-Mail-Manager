@@ -4,8 +4,11 @@ import {
   useState,
 } from "react";
 
+import type React from "react";
+
 import {
   api,
+  type ChatEmail,
   type DashboardResponse,
   type Email,
 } from "./api/client";
@@ -35,6 +38,12 @@ type FilterMode =
 type ViewMode =
   | "inbox"
   | "jobs";
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+  emails?: ChatEmail[];
+};
 
 
 function App() {
@@ -115,6 +124,29 @@ function App() {
 
   const [error, setError] =
     useState<string | null>(null);
+
+
+  /* =========================================================
+     CHAT ASSISTANT
+     ========================================================= */
+
+  const [chatOpen, setChatOpen] =
+    useState(false);
+
+  const [chatInput, setChatInput] =
+    useState("");
+
+  const [chatMessages, setChatMessages] =
+    useState<ChatMessage[]>([
+      {
+        role: "assistant",
+        content:
+          "Hi! I can help you find and understand your emails. Try asking me about a company, sender, job application, or date range.",
+      },
+    ]);
+
+  const [chatLoading, setChatLoading] =
+    useState(false);
 
 
   /* =========================================================
@@ -611,6 +643,101 @@ function App() {
 
     }
 
+  }
+
+
+  /* =========================================================
+     CHAT ASSISTANT
+     ========================================================= */
+
+  async function handleChatSubmit() {
+    const message = chatInput.trim();
+
+    if (!message || chatLoading) {
+      return;
+    }
+
+    setChatInput("");
+
+    setChatMessages(current => [
+      ...current,
+      {
+        role: "user",
+        content: message,
+      },
+    ]);
+
+    try {
+      setChatLoading(true);
+
+      const response =
+        await api.chat(message);
+
+      let assistantMessage =
+        response.message_response;
+
+      if (!assistantMessage) {
+        if (
+          response.intent.intent ===
+          "search_emails"
+        ) {
+          assistantMessage =
+            response.count > 0
+              ? `I found ${response.count} email${
+                  response.count === 1 ? "" : "s"
+                } matching your request.`
+              : "I couldn't find any emails matching your request.";
+        } else {
+          assistantMessage =
+            "I understand your request, but that operation isn't implemented yet.";
+        }
+      }
+
+      setChatMessages(current => [
+        ...current,
+        {
+          role: "assistant",
+          content: assistantMessage ?? "No response received.",
+          emails: response.emails,
+        },
+      ]);
+    } catch (err) {
+      setChatMessages(current => [
+        ...current,
+        {
+          role: "assistant",
+          content:
+            err instanceof Error
+              ? err.message
+              : "Sorry, something went wrong while processing your request.",
+        },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+
+  function handleChatKeyDown(
+    event: React.KeyboardEvent<HTMLInputElement>
+  ) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleChatSubmit();
+    }
+  }
+
+
+  async function handleChatEmailClick(
+    emailId: number
+  ) {
+    const email = emails.find(
+      item => item.id === emailId
+    );
+
+    if (email) {
+      await handleEmailSelect(email);
+    }
   }
 
 
@@ -1650,6 +1777,190 @@ function App() {
         </section>
 
       </main>
+
+
+      {/* =====================================================
+          AI CHAT ASSISTANT
+          ===================================================== */}
+
+      {chatOpen && (
+        <section className="chat-panel">
+
+          <div className="chat-header">
+
+            <div>
+              <strong>
+                AI Mail Assistant
+              </strong>
+
+              <span>
+                Ask me about your emails
+              </span>
+            </div>
+
+            <button
+              type="button"
+              className="chat-close"
+              onClick={() =>
+                setChatOpen(false)
+              }
+              aria-label="Close chat"
+            >
+              ×
+            </button>
+
+          </div>
+
+
+          <div className="chat-messages">
+
+            {chatMessages.map(
+              (message, index) => (
+
+                <div
+                  key={index}
+                  className={
+                    message.role === "user"
+                      ? "chat-message user"
+                      : "chat-message assistant"
+                  }
+                >
+
+                  <div className="chat-bubble">
+                    {message.content}
+                  </div>
+
+
+                  {message.emails &&
+                    message.emails.length > 0 && (
+
+                    <div className="chat-email-results">
+
+                      {message.emails.map(
+                        email => (
+
+                          <button
+                            key={email.id}
+                            type="button"
+                            className="chat-email-card"
+                            onClick={() =>
+                              handleChatEmailClick(
+                                email.id
+                              )
+                            }
+                          >
+
+                            <strong>
+                              {email.subject ||
+                                "(No subject)"}
+                            </strong>
+
+                            <span>
+                              {email.sender_name ||
+                                email.sender ||
+                                "Unknown sender"}
+                            </span>
+
+                            {email.received_at && (
+                              <time>
+                                {new Date(
+                                  email.received_at
+                                ).toLocaleString()}
+                              </time>
+                            )}
+
+                            {email.snippet && (
+                              <p>
+                                {email.snippet}
+                              </p>
+                            )}
+
+                            {email.is_job_related && (
+                              <small>
+                                Job Application
+                              </small>
+                            )}
+
+                          </button>
+
+                        )
+                      )}
+
+                    </div>
+
+                  )}
+
+                </div>
+
+              )
+            )}
+
+
+            {chatLoading && (
+
+              <div className="chat-message assistant">
+
+                <div className="chat-bubble">
+                  Thinking...
+                </div>
+
+              </div>
+
+            )}
+
+          </div>
+
+
+          <div className="chat-input-area">
+
+            <input
+              type="text"
+              value={chatInput}
+              onChange={event =>
+                setChatInput(
+                  event.target.value
+                )
+              }
+              onKeyDown={
+                handleChatKeyDown
+              }
+              placeholder="Ask about your emails..."
+              disabled={chatLoading}
+            />
+
+            <button
+              type="button"
+              onClick={
+                handleChatSubmit
+              }
+              disabled={
+                chatLoading ||
+                !chatInput.trim()
+              }
+            >
+              Send
+            </button>
+
+          </div>
+
+        </section>
+      )}
+
+
+      {!chatOpen && (
+
+        <button
+          type="button"
+          className="chat-floating-button"
+          onClick={() =>
+            setChatOpen(true)
+          }
+          aria-label="Open AI Mail Assistant"
+        >
+          AI
+        </button>
+
+      )}
 
     </div>
 
