@@ -97,14 +97,7 @@ SESSION_SECRET = os.getenv(
 
 app.add_middleware(
     SessionMiddleware,
-<<<<<<< Updated upstream
-    secret_key=os.getenv(
-        "SESSION_SECRET",
-        "development-session-secret",
-    ),
-=======
     secret_key=SESSION_SECRET,
->>>>>>> Stashed changes
     same_site="none",
     https_only=True,
 )
